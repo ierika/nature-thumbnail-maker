@@ -8,10 +8,17 @@ from bs4 import BeautifulSoup
 from PIL import Image
 from PIL import ImageOps
 from unipath import Path
+from minio import Minio
 
 
-WORKSPACE = Path(os.getenv('HOME')).child('Downloads')
-WORKSPACE = WORKSPACE.child('thumbnail_output')
+MINIO = Minio(os.getenv('MINIO_HOST'),
+              access_key=os.getenv('MINIO_ACCESS_KEY_ID'),
+              secret_key=os.getenv('MINIO_SECRET_ACCESS_KEY'),
+              secure=False)
+BUCKET_NAME = 'natureasia-static'
+WORKSPACE = Path(os.getenv('HOME')).child('Desktop')
+WORKSPACE = WORKSPACE.child('THUMBNAIL_OUT')
+LOCKFILE = Path('/tmp/thumbnail_maker.lock')
 
 
 def exit_error(message):
@@ -21,23 +28,36 @@ def exit_error(message):
 
 def check_requirements():
     '''
-    Checks whether the script is compatible with the OS
+    Checks for requirements
     '''
+    # Check OS requirements
     if os.name is not 'posix':
         exit_error('This script currently only supports Unix-like OS\'s.')
+
+    # Check if theres a lock file. We only allow one process at a time.
+    if LOCKFILE.exists():
+        exit_error('Thumbnail maker is currently busy. Please try later.')
+
     # Make sure our workspace is there
-    if not WORKSPACE.exists():
-        WORKSPACE.mkdir()
-    else:
-        WORKSPACE.rmdir()
-        WORKSPACE.mkdir()
+    try:
+        if not WORKSPACE.exists():
+            WORKSPACE.mkdir()
+        else:
+            WORKSPACE.rmtree()
+            WORKSPACE.mkdir()
+    except Exception as e:
+        exit_error('Could not create workspace directory: {}'.format(e))
+
+    # Check Minio
+    if not Minio:
+        exit_error('No access to Minio')
 
 
 def get_html(articles_url):
     try:
         html = urlopen(articles_url)
     except Exception as e:
-        exit_error(e.reason)
+        exit_error(e)
     return html.read()
 
 
@@ -62,14 +82,14 @@ def get_image_links(doi_list):
     try:
         urlopen(domain)
     except Exception as e:
-        exit_error('Could not connect to Content Hub API: {}'.format(e.reason))
+        exit_error('Could not connect to Content Hub API: {}'.format(e))
     client = "?domain=nature&client=natureasia"
     image_link_list = []
     for doi in doi_list:
         try:
             resp = urlopen(api + doi + client)
         except Exception as e:
-            print(e.reason)
+            print(e)
             continue
         jsonObj = json.load(resp)
         image_link = jsonObj['article']['hasImage']
@@ -91,7 +111,7 @@ def download_image(doi, link):
         with open(file_name, 'wb') as f:
             f.write(binary.read())
     except Exception as e:
-        print('ERROR: could not download {} image: {}'.format(doi, e.reason))
+        print('ERROR: could not download {} image: {}'.format(doi, e))
     return file_name
 
 
@@ -131,48 +151,90 @@ def parse_args():
         exit_error(help_msg)
 
 
+def upload_file(journal_shortname=None, file=None):
+    '''Uploads the file to Minio server'''
+    file_name = file.name
+    key = 'ja-jp/{journal_shortname}/img/articles/{file_name}'.format(
+        journal_shortname=journal_shortname,
+        file_name=file_name,
+    )
+    try:
+        MINIO.fput_object(BUCKET_NAME, key, file)
+        print('Uploaded {}'.format(file))
+    except Exception as e:
+        exit_error(e)
+
+
+def lock():
+    LOCKFILE.write_file('')
+
+
+def unlock():
+    if LOCKFILE.exists():
+        LOCKFILE.rmtree()
+
+
 if __name__ == '__main__':
-    check_requirements()
-    journal_shortname, mode = parse_args()
-    # Load
-    articles_url = 'https://www.natureasia.com/ja-jp/{}/articles?v={}'.format(
-        journal_shortname,
-        random.randint(1, 1000))
-    print('Loading ' + articles_url)
-    html = get_html(articles_url)
-    print('Successfully loaded.')
+    try:
+        # Check for requirements above anything else
+        check_requirements()
+        lock()
+        journal_shortname, mode = parse_args()
+        # Load
+        articles_url = 'https://www.natureasia.com/ja-jp/{}/articles?v={}'.format(
+            journal_shortname,
+            random.randint(1, 1000))
+        print('Loading ' + articles_url)
+        html = get_html(articles_url)
+        print('Successfully loaded.')
 
-    # Scrape.
-    '''
-    We could have have one or more scrapers in the future.
-    So I made a tuple of would be scrapers.
-    We are scraping because these articles that we're looking for are
-    hard-coded.
-    '''
-    doi_list = []
-    natureasia_scrapers = (natureasia_scraper1,)
-    for scraper in natureasia_scrapers:
-        try:
-            doi_list = scraper(html)
-        except Exception as e:
-            print('Trying to scrape with another scraper...')
-            continue
+        # Scrape.
+        '''
+        We could have have one or more scrapers in the future.
+        So I made a tuple of would be scrapers.
+        We are scraping because these articles that we're looking for are
+        hard-coded.
+        '''
+        doi_list = []
+        natureasia_scrapers = (natureasia_scraper1,)
+        for scraper in natureasia_scrapers:
+            try:
+                doi_list = scraper(html)
+            except Exception as e:
+                print('Trying to scrape with another scraper...')
+                continue
 
-    if not doi_list:
-        exit_error('Could not scrape HTML')
+        if not doi_list:
+            exit_error('Could not scrape HTML')
 
-    # Scrape each article links for image
-    image_link_list = get_image_links(doi_list)
+        # Scrape each article links for image
+        image_link_list = get_image_links(doi_list)
 
-    # Download the images
-    file_list = []
-    for doi, link in image_link_list:
-        file_list.append(download_image(doi, link))
+        # Download the images
+        file_list = []
+        for doi, link in image_link_list:
+            file_list.append(download_image(doi, link))
 
-    # Convert the images to a thumbnail
-    for file in file_list:
-        img = Image.open(file)
-        img = convert_to_jpeg(img)
-        thumbnail = make_thumbnail(img, mode=mode)
-        thumbnail.save(img.filename, quality=95, format='jpeg')
-        print('Thumbnail for {} is generated.'.format(img.filename))
+        # Convert the images to a thumbnail
+        for file in file_list:
+            img = Image.open(file)
+            img = convert_to_jpeg(img)
+            thumbnail = make_thumbnail(img, mode=mode)
+            thumbnail.save(img.filename, quality=70, format='jpeg')
+            print('Thumbnail for {} is generated.'.format(img.filename))
+
+        # Upload thumbnails to Minio. First let's check if the bucket exists.
+        if MINIO.bucket_exists(BUCKET_NAME):
+            for file in file_list:
+                upload_file(journal_shortname=journal_shortname, file=file)
+        else:
+            exit_error('{} doesn\'t exist.'.format(BUCKET_NAME))
+
+        # Finish
+        print('DONE')
+        unlock()
+    except KeyboardInterrupt as e:
+        print('Aborting...')
+    finally:
+        unlock()
+        exit()

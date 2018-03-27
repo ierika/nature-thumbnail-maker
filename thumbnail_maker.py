@@ -27,9 +27,8 @@ def exit_error(message):
 
 
 def check_requirements():
-    '''
-    Checks for requirements
-    '''
+    '''Checks for requirements'''
+
     # Check OS requirements
     if os.name is not 'posix':
         exit_error('This script currently only supports Unix-like OS\'s.')
@@ -38,7 +37,8 @@ def check_requirements():
     if LOCKFILE.exists():
         exit_error('Thumbnail maker is currently busy. Please try later.')
 
-    # Make sure our workspace is there
+    # Make sure our workspace is there, if it already is, erase it,
+    # and make a new one.
     try:
         if not WORKSPACE.exists():
             WORKSPACE.mkdir()

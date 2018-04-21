@@ -188,10 +188,13 @@ if __name__ == '__main__':
         check_requirements()
         lock()
         journal_shortname, mode = parse_args()
+        params = urlencode({'v': random.randint(1, 1000)})
         # Load
-        articles_url = 'https://www.natureasia.com/ja-jp/{}/articles?v={}'.format(
+        articles_url = '''
+            https://www.natureasia.com/ja-jp/{}/articles?{}
+            '''.format(
             journal_shortname,
-            random.randint(1, 1000))
+            params).strip()
         print('Loading ' + articles_url)
         html = get_html(articles_url)
         print('Successfully loaded.')

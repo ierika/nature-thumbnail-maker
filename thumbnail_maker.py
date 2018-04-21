@@ -105,7 +105,7 @@ def download_image(doi, link):
     file_extension = file_extension.split('.').pop()
     file_name = '{}.{}'.format(doi, file_extension)
     file_name = WORKSPACE.child(file_name)
-    print('Downloading ' + file_name)
+    print('Downloading ' + link)
     try:
         binary = urlopen(link)
         with open(file_name, 'wb') as f:

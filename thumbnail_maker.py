@@ -211,6 +211,8 @@ if __name__ == '__main__':
         for scraper in natureasia_scrapers:
             try:
                 doi_list = scraper(html)
+                if not doi_list:
+                    break
             except Exception as e:
                 print('Trying to scrape with another scraper...')
                 continue

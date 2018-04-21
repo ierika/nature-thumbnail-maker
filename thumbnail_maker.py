@@ -3,6 +3,7 @@ import os
 import json
 import random
 from urllib.request import urlopen
+from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup
 from PIL import Image
@@ -78,16 +79,23 @@ def natureasia_scraper1(html):
 
 def get_image_links(doi_list):
     domain = 'http://hub-api.live.cf.private.springer.com:80'
-    api = domain + "/api/v1/articles/"
+    api = domain + "/api/v1/articles"
     try:
         urlopen(domain)
     except Exception as e:
         exit_error('Could not connect to Content Hub API: {}'.format(e))
-    client = "?domain=nature&client=natureasia"
+    query_params = {
+        'domain': 'nature',
+        'client': 'natureasia',
+    }
     image_link_list = []
     for doi in doi_list:
         try:
-            resp = urlopen(api + doi + client)
+            resp = urlopen('{api_endpoint}/{doi}/?{query_params}'.format(
+                api_endpoint=api,
+                doi=doi,
+                query_params=urlencode(query_params),
+                ))
         except Exception as e:
             print(e)
             continue

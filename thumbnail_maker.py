@@ -96,15 +96,15 @@ def get_image_links(doi_list):
                 doi=doi,
                 query_params=urlencode(query_params),
                 ))
+            jsonObj = json.load(resp)
+            image_link = jsonObj['article']['hasImage']
+            image_link = image_link['hasImageAsset']['link']
+            if image_link:
+                print('Found image asset of {}'.format(doi))
+                image_link_list.append((doi, image_link))
         except Exception as e:
             print(e)
             continue
-        jsonObj = json.load(resp)
-        image_link = jsonObj['article']['hasImage']
-        image_link = image_link['hasImageAsset']['link'] or None
-        if image_link:
-            print('Found image asset of {}'.format(doi))
-            image_link_list.append((doi, image_link))
     return image_link_list
 
 
@@ -211,7 +211,7 @@ if __name__ == '__main__':
         for scraper in natureasia_scrapers:
             try:
                 doi_list = scraper(html)
-                if not doi_list:
+                if doi_list:
                     break
             except Exception as e:
                 print('Trying to scrape with another scraper...')

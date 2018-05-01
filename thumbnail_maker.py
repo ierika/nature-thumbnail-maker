@@ -1,3 +1,4 @@
+#!/usr/bin/env Python3
 import sys
 import os
 import json
@@ -23,18 +24,24 @@ LOCKFILE = Path('/tmp/thumbnail_maker.lock')
 
 
 def exit_error(message):
+    """
+    Exits shell with the status code of 1
+
+    :param message:
+    """
     print(message)
     exit(1)
 
 
 def check_requirements():
-    '''Checks for requirements'''
-
+    """
+    Checks for requirements
+    """
     # Check OS requirements
     if os.name is not 'posix':
         exit_error('This script currently only supports Unix-like OS\'s.')
 
-    # Check if theres a lock file. We only allow one process at a time.
+    # Check if there's a lock file. We only allow one process at a time.
     if LOCKFILE.exists():
         exit_error('Thumbnail maker is currently busy. Please try later.')
 
@@ -55,6 +62,15 @@ def check_requirements():
 
 
 def get_html(articles_url):
+    """
+    Downloads articles page HTML.
+
+    So it can be parsed.
+
+    :param articles_url:
+    :return:
+    """
+    html = None
     try:
         html = urlopen(articles_url)
     except Exception as e:
@@ -63,6 +79,15 @@ def get_html(articles_url):
 
 
 def natureasia_scraper1(html):
+    """
+    Scrapes articles page.
+
+    This is just one of the scrapers.
+    There may be more once there's a need for it.
+
+    :param html:
+    :return:
+    """
     bs4 = BeautifulSoup(html, 'html.parser')
     article_objects = bs4.find('', {'class': 'article-list'})
     article_objects = article_objects.findAll('article')
@@ -78,6 +103,12 @@ def natureasia_scraper1(html):
 
 
 def get_image_links(doi_list):
+    """
+    Get image link list
+
+    :param doi_list:
+    :return:
+    """
     domain = 'http://hub-api.live.cf.private.springer.com:80'
     api = domain + "/api/v1/articles"
     try:
@@ -109,6 +140,13 @@ def get_image_links(doi_list):
 
 
 def download_image(doi, link):
+    """
+    Downloads image link
+
+    :param doi:
+    :param link:
+    :return:
+    """
     file_extension = link.split('/').pop()
     file_extension = file_extension.split('.').pop()
     file_name = '{}.{}'.format(doi, file_extension)
@@ -124,6 +162,16 @@ def download_image(doi, link):
 
 
 def make_thumbnail(img, min_size=200, fill_color=(255, 255, 255), mode='pad'):
+    """
+    Makes a thumbnail.
+
+    :param img:
+    :param min_size:
+    :param fill_color:
+    :param mode:
+    :return:
+    """
+    thumbnail = None
     if mode == 'pad':
         x, y = img.size
         size = max(min_size, x, y)
@@ -138,15 +186,26 @@ def make_thumbnail(img, min_size=200, fill_color=(255, 255, 255), mode='pad'):
 
 
 def convert_to_jpeg(img):
+    """
+    Converts all image to JPEG.
+
+    :param img:
+    :return:
+    """
     if img.format is not 'JPEG':
         return img.convert(mode='RGB')
     return img
 
 
 def parse_args():
-    help_msg = '''
+    """
+    Parses command-line arguments
+
+    :return:
+    """
+    help_msg = """
         USAGE: python thumbnail_maker.py <journal_shortname> <mode[crop|pad]>
-        '''
+        """
     if len(sys.argv) == 3:
         return (sys.argv[1], sys.argv[2])
     elif len(sys.argv) > 3:
@@ -160,7 +219,13 @@ def parse_args():
 
 
 def upload_file(journal_shortname=None, file=None):
-    '''Uploads the file to Minio server'''
+    """
+    Uploads the file to Minio server
+
+    :param journal_shortname:
+    :param file:
+    :return:
+    """
     file_name = file.name
     key = 'ja-jp/{journal_shortname}/img/articles/{file_name}'.format(
         journal_shortname=journal_shortname,
@@ -190,9 +255,9 @@ if __name__ == '__main__':
         journal_shortname, mode = parse_args()
         params = urlencode({'v': random.randint(1, 1000)})
         # Load
-        articles_url = '''
+        articles_url = """
             https://www.natureasia.com/ja-jp/{}/articles?{}
-            '''.format(
+            """.format(
             journal_shortname,
             params).strip()
         print('Loading ' + articles_url)
@@ -200,12 +265,12 @@ if __name__ == '__main__':
         print('Successfully loaded.')
 
         # Scrape.
-        '''
+        """
         We could have have one or more scrapers in the future.
         So I made a tuple of would be scrapers.
         We are scraping because these articles that we're looking for are
         hard-coded.
-        '''
+        """
         doi_list = []
         natureasia_scrapers = (natureasia_scraper1,)
         for scraper in natureasia_scrapers:

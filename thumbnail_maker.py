@@ -27,7 +27,8 @@ def exit_error(message):
     """
     Exits shell with the status code of 1
 
-    :param message:
+    :param message: error message to be shown
+    :type message: string
     """
     print(message)
     exit(1)
@@ -67,8 +68,10 @@ def get_html(articles_url):
 
     So it can be parsed.
 
-    :param articles_url:
-    :return:
+    :param articles_url: URL of the page to scrape
+    :type articles_url: string
+    :return: The HTML content
+    :rtype: string
     """
     html = None
     try:
@@ -85,8 +88,10 @@ def natureasia_scraper1(html):
     This is just one of the scrapers.
     There may be more once there's a need for it.
 
-    :param html:
-    :return:
+    :param html: A String containing an HTML markup
+    :type: string
+    :return: A list pf strings containing DOIs
+    :rtype: list
     """
     bs4 = BeautifulSoup(html, 'html.parser')
     article_objects = bs4.find('', {'class': 'article-list'})
@@ -106,8 +111,10 @@ def get_image_links(doi_list):
     """
     Get image link list
 
-    :param doi_list:
-    :return:
+    :param doi_list: list of DOI without the '10.1038'
+    :type doi_list: list
+    :return: a list of tuples containing the DOI and the image asset URL
+    :rtype: list
     """
     domain = 'http://hub-api.live.cf.private.springer.com:80'
     api = domain + "/api/v1/articles"
@@ -143,9 +150,12 @@ def download_image(doi, link):
     """
     Downloads image link
 
-    :param doi:
-    :param link:
-    :return:
+    :param doi
+    :param link: URL to the image asset
+    :type doi: string
+    :type link: string
+    :return: a file path to the downloaded image
+    :rtype: a Path object
     """
     file_extension = link.split('/').pop()
     file_extension = file_extension.split('.').pop()
@@ -165,11 +175,16 @@ def make_thumbnail(img, min_size=200, fill_color=(255, 255, 255), mode='pad'):
     """
     Makes a thumbnail.
 
-    :param img:
-    :param min_size:
-    :param fill_color:
-    :param mode:
-    :return:
+    :param img: an Image object
+    :param min_size: The minimum width for the thumbnail
+    :param fill_color: RGB color
+    :param mode: Resizing mode. pad or crop.
+    :type img: Image
+    :type min_size: int
+    :type fill_color: tuple
+    :type mode: string
+    :return: an Image object
+    :type: Image
     """
     thumbnail = None
     if mode == 'pad':
@@ -189,8 +204,10 @@ def convert_to_jpeg(img):
     """
     Converts all image to JPEG.
 
-    :param img:
-    :return:
+    :param img
+    :type img: An Image object
+    :return: Returns the same image object. Just converted to RGB.
+    :rtype: Image
     """
     if img.format is not 'JPEG':
         return img.convert(mode='RGB')
@@ -200,8 +217,6 @@ def convert_to_jpeg(img):
 def parse_args():
     """
     Parses command-line arguments
-
-    :return:
     """
     help_msg = """
         USAGE: python thumbnail_maker.py <journal_shortname> <mode[crop|pad]>
@@ -222,9 +237,10 @@ def upload_file(journal_shortname=None, file=None):
     """
     Uploads the file to Minio server
 
-    :param journal_shortname:
-    :param file:
-    :return:
+    :param journal_shortname: The journal short name
+    :param file: a file path to the image file to be uploaded
+    :type journal_shortname: string
+    :type file: Path
     """
     file_name = file.name
     key = 'ja-jp/{journal_shortname}/img/articles/{file_name}'.format(

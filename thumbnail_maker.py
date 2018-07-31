@@ -1,4 +1,5 @@
 #!/usr/bin/env Python3
+import re
 import sys
 import os
 import json
@@ -242,6 +243,7 @@ def upload_file(journal_shortname=None, file=None):
     :type journal_shortname: string
     :type file: Path
     """
+    file = Path(file)
     file_name = file.name
     key = 'ja-jp/{journal_shortname}/img/articles/{file_name}'.format(
         journal_shortname=journal_shortname,
@@ -251,7 +253,7 @@ def upload_file(journal_shortname=None, file=None):
         MINIO.fput_object(BUCKET_NAME, key, file)
         print('Uploaded {}'.format(file))
     except Exception as e:
-        exit_error(e)
+        exit_error(str(e))
 
 
 def lock():
@@ -307,19 +309,28 @@ if __name__ == '__main__':
         # Download the images
         file_list = []
         for doi, link in image_link_list:
-            file_list.append(download_image(doi, link))
+            file_path = download_image(doi, link)
+            file_list.append(file_path)
 
         # Convert the images to a thumbnail
+        upload_list = []
         for file in file_list:
             img = Image.open(file)
             img = convert_to_jpeg(img)
-            thumbnail = make_thumbnail(img, mode=mode)
-            thumbnail.save(img.filename, quality=70, format='jpeg')
-            print('Thumbnail for {} is generated.'.format(img.filename))
+
+            try:
+                thumbnail = make_thumbnail(img, mode=mode)
+                filename = re.sub(r'\.(png|tiff|bmp)$', '.jpg', file)
+                thumbnail.save(filename, quality=70, format='jpeg')
+                print('Thumbnail for {} is generated.'.format(filename))
+                upload_list.append(filename)
+            except Exception as e:
+                print(str(e))
+
 
         # Upload thumbnails to Minio. First let's check if the bucket exists.
         if MINIO.bucket_exists(BUCKET_NAME):
-            for file in file_list:
+            for file in upload_list:
                 upload_file(journal_shortname=journal_shortname, file=file)
         else:
             exit_error('{} doesn\'t exist.'.format(BUCKET_NAME))
